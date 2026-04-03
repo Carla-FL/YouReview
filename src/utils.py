@@ -1,0 +1,330 @@
+import re
+import os
+import time
+import pandas as pd
+import streamlit as st
+from langdetect import detect
+from googleapiclient.discovery import build
+
+def initialize_session_state():
+    """Initialise les variables de session si elles n'existent pas"""
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+    if 'url_inputed' not in st.session_state:
+        st.session_state.url_inputed = ""
+    if 'videoid' not in st.session_state:
+        st.session_state.videoid = None
+
+
+def get_url():
+    """Formulaire pour saisir l'URL de la vidéo YouTube et valider son format.
+
+    Returns:
+        str: l'id de la vidéo
+        str: l'url de la vidéo
+    """
+    with st.form("url_form"):
+        url = st.text_input(label="L'url de la vidéo", value=st.session_state.url_inputed,  placeholder="https://www.youtube.com/watch..........", key="url_input") #key="url",
+        submit_button = st.form_submit_button("Analyser") # création du boutton
+    ##
+    if submit_button : #st.button("Analyser"):
+        if url == "":
+            st.error("Veuillez entrer une URL YouTube valide.")
+            return None, None
+        else :
+            try :
+                video_id = url2id(url)
+                st.session_state.url_inputed = url
+                return url, video_id
+            except Exception as e:
+                st.error(f"Une erreur est survenue lors de la validation de l'URL : {e}")
+                return None, None
+            # st.write(f"Analyse de la vidéo : {url}")
+    return st.session_state.url_inputed, st.session_state.videoid
+
+
+def authenticate_user(username, password):
+    """Vérifie les identifiants de l'utilisateur
+    
+    Args:
+        username (str): Le nom d'utilisateur
+        password (str): Le mot de passe"""
+    
+    # Page de connexion
+    st.subheader("Connexion 🔐")
+    st.write("Veuillez vous connecter pour accéder à l'application.")
+    with st.form("login_form"):
+            username = st.text_input(label="Nom de la chaine YouTube",placeholder=" @Squeezie / @SEB / @LenaSituations" ) # création du champ de saisie pour le nom d'utilisateur
+            password = st.text_input("Mot de passe", type="password") # création du champ de saisie pour le mot de passe
+            submit_button = st.form_submit_button("Se connecter") # création du boutton
+
+    # st.write("Veuillez vous connecter avec votre compte Google pour accéder à l'application.")
+    if submit_button: # si le boutton est cliqué
+        if not st.session_state.authenticated:
+            if username == st.secrets.admin.username and password == st.secrets.admin.password: # vérification des identifiants et mot de passe
+                st.session_state.authenticated = True # mise à jour de l'état de la session
+                st.session_state.user = username # stockage du nom d'utilisateur dans la session
+                st.success("Connexion réussie ! Vous pouvez maintenant accéder à l'application.")
+            else:
+                st.error("Nom d'utilisateur ou mot de passe incorrect.")
+
+
+# récupérer l'id de la vidéo à partir de l'URL
+def url2id(video_url:str) -> str:
+    """ Convertit une URL YouTube en ID de vidéo si l'URL est valide.
+    Args:
+        video_url (str): L'URL de la vidéo YouTube
+    Returns:
+        str: L'ID de la vidéo YouTube"""
+
+    long_pattern = r'^(https:\/\/www\.youtube\.com\/watch\?v=).{11}$' # nouveau pattern pour les URL classiques de YouTube
+    short_pattern = r'^(https:\/\/youtu.be/).{11}$' # nouveau pattern pour les URL courtes de YouTube
+    
+    if re.match(short_pattern, video_url) :
+        print("Valid YouTube URL")
+        video_id = video_url[-11:] #  code pour extraire l'id de la vidéo à partir de l'URL courte
+        return video_id
+    if re.match(long_pattern, video_url) :
+        print("Valid YouTube URL")
+        video_id = video_url.split("v=")[-1][:11]  #  code pour extraire l'id de la vidéo à partir de l'URL longue
+        return video_id
+    else:
+        raise ValueError('Error : invalid YouTube URL')
+
+
+def get_data(self):
+    # logger = get_run_logger()
+    api_key = self.api_key # .get_key() #
+    youtube = build("youtube", "v3", developerKey=api_key)
+
+    # Paramètres initiaux pour la requête
+    video_id = self.url2id()
+    comments_data = []
+    next_page_token = None
+
+    # Récupérer les infos de la vidéo
+    try:
+        video_response = youtube.videos().list(
+            part="snippet,statistics",
+            id=video_id
+        ).execute()
+        # logger.info(f"Récupération des infos de la vidéo pour l'ID : {video_id}")
+    except Exception as e:
+        raise RuntimeError(f"Impossible de récupérer les infos de la vidéo : {e}")
+
+    try:
+        video_info = video_response["items"][0]["snippet"]
+        self.channel_id = video_info["channelId"]
+        # self.exisitng_comments_id =  Load().check_exisitng_data(self.channel_id, self.video_id)
+        # logger.info(f"ID de la chaîne : {self.channel_id}")
+        
+    except Exception as e:
+        raise RuntimeError(f"Impossible de récupérer l'id de la chaine' : {e}")
+    
+
+    # Vérifier la langue de la chaîne
+    try:
+
+        video_title = video_info["title"]
+        video_description = video_info["description"]
+        lang = detect(video_title + " " + video_description)
+        print(f"Langue de la chaîne : {lang}")
+
+        if lang != "fr":
+            raise ValueError(f"Langue détectée : {lang.upper()}, ce script ne traite que les chaînes françaises.")
+    except Exception as e:
+        raise RuntimeError(f"Impossible de vérifier la langue de la chaîne : {e}")
+    
+    # Vérifier le nombre de commentaires
+    try:
+        video_nb_comments = int(video_response["items"][0]["statistics"]["commentCount"])
+        if video_nb_comments<200:
+            raise ValueError('Error : not enough comments')
+    except Exception as e:
+        raise RuntimeError(f"Impossible de récupérer le nombre de commentaires : {e}")
+    
+
+    # Étape 3 – Collecte des commentaires
+    print("Langue valide \n"
+    "Nombre de commentaires suffisant \n"
+    "Récupération des commentaires en cours...")
+    # logger.info("Langue valide \n"
+    # "Nombre de commentaires suffisant \n"
+    # "Récupération des commentaires en cours...")
+
+    while True:
+        response = youtube.commentThreads().list(
+        part="snippet",
+        videoId=video_id,
+        maxResults=100,
+        order="time",
+        textFormat="plainText",
+        pageToken=next_page_token
+        ).execute()
+        
+        # Ajouter les commentaires récupérés à la liste
+        extraction_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        for item in response.get("items", []):
+            # logger.info(f"on compare : {item['id']} et {self.last_comment}")
+            comment_info = item["snippet"]["topLevelComment"]["snippet"]
+            # if item["id"] not in self.exisitng_comments_id:
+            # Vérifier si le commentaire a déjà été extrait :
+            if comment_info.get("channelId") == comment_info.get("authorChannelId"):
+                continue
+            
+            comments_data.append({
+                "url": self.video_url,
+                "id": item["id"],
+                "titre" : video_title,
+                "channelId": comment_info.get("channelId"),
+                "videoId": comment_info.get("videoId"),	
+                "publishedAt": comment_info.get("publishedAt"),
+                "comment": comment_info.get("textOriginal"),
+                "likeCount": comment_info.get("likeCount"),
+                "extractedAt": extraction_date
+            })
+
+        # Vérifier s'il y a une page suivante
+        time.sleep(5)
+        next_page_token = response.get("nextPageToken")
+        if not next_page_token:
+            break
+        time.sleep(1)
+
+    print(f'data uploaded')
+    # logger.info(f'data uploaded')
+    return comments_data
+
+class Extraction :
+    """
+    Classe d'extraction des données YouTube à partir d'une URL de vidéo.
+    
+    Args:
+        video_url (str): L'URL de la vidéo YouTube à analyser
+
+    """
+    def __init__(self, video_url:str="", video_id:str=""):
+        
+        self.api_key = os.getenv('DEVELOPER_KEY')
+        self.video_url = video_url
+        self.video_id = video_id
+        self.channel_id = None
+
+
+    def get_data(self):
+        # appel de l'API YouTube Data v3
+        api_key = self.api_key 
+        youtube = build("youtube", "v3", developerKey=api_key)
+
+        # Paramètres initiaux pour la requête
+        video_id = self.video_id
+        comments_data = []
+        next_page_token = None
+
+        # Récupérer les infos de la vidéo
+        try:
+            video_response = youtube.videos().list(
+                part="snippet,statistics",
+                id=video_id
+            ).execute()
+            # logger.info(f"Récupération des infos de la vidéo pour l'ID : {video_id}")
+        except Exception as e:
+            raise RuntimeError(f"Impossible de récupérer les infos de la vidéo : {e}")
+
+        try:
+            video_info = video_response["items"][0]["snippet"]
+            self.channel_id = video_info["channelId"]
+            # self.exisitng_comments_id =  Load().check_exisitng_data(self.channel_id, self.video_id)
+            # logger.info(f"ID de la chaîne : {self.channel_id}")
+            
+        except Exception as e:
+            raise RuntimeError(f"Impossible de récupérer l'id de la chaine' : {e}")
+        
+
+        # Vérifier la langue de la chaîne
+        try:
+
+            video_title = video_info["title"]
+            video_description = video_info["description"]
+            lang = detect(video_title + " " + video_description)
+            print(f"Langue de la chaîne : {lang}")
+
+            if lang != "fr":
+                raise ValueError(f"Langue détectée : {lang.upper()}, ce script ne traite que les chaînes françaises.")
+        except Exception as e:
+            raise RuntimeError(f"Impossible de vérifier la langue de la chaîne : {e}")
+        
+        # Vérifier le nombre de commentaires
+        try:
+            video_nb_comments = int(video_response["items"][0]["statistics"]["commentCount"])
+            if video_nb_comments<200:
+                raise ValueError('Error : not enough comments')
+        except Exception as e:
+            raise RuntimeError(f"Impossible de récupérer le nombre de commentaires : {e}")
+        
+
+        # Étape 3 – Collecte des commentaires
+        print("Langue valide \n"
+        "Nombre de commentaires suffisant \n"
+        "Récupération des commentaires en cours...")
+        # logger.info("Langue valide \n"
+        # "Nombre de commentaires suffisant \n"
+        # "Récupération des commentaires en cours...")
+
+        while True:
+            response = youtube.commentThreads().list(
+            part="snippet",
+            videoId=video_id,
+            maxResults=100,
+            order="time",
+            textFormat="plainText",
+            pageToken=next_page_token
+            ).execute()
+            
+            # Ajouter les commentaires récupérés à la liste
+            extraction_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            for item in response.get("items", []):
+                # logger.info(f"on compare : {item['id']} et {self.last_comment}")
+                comment_info = item["snippet"]["topLevelComment"]["snippet"]
+                # if item["id"] not in self.exisitng_comments_id:
+                # Vérifier si le commentaire a déjà été extrait :
+                if comment_info.get("channelId") == comment_info.get("authorChannelId"):
+                    continue
+                
+                comments_data.append({
+                    "url": self.video_url,
+                    "id": item["id"],
+                    "titre" : video_title,
+                    "channelId": comment_info.get("channelId"),
+                    "videoId": comment_info.get("videoId"),	
+                    "publishedAt": comment_info.get("publishedAt"),
+                    "comment": comment_info.get("textOriginal"),
+                    "likeCount": comment_info.get("likeCount"),
+                    "extractedAt": extraction_date
+                })
+
+            # Vérifier s'il y a une page suivante
+            time.sleep(5)
+            next_page_token = response.get("nextPageToken")
+            if not next_page_token:
+                break
+            time.sleep(1)
+
+        print(f'data uploaded')
+        # logger.info(f'data uploaded')
+        return comments_data
+
+    # Fonction pour créer un DataFrame à partir des données collectées
+    def get_data_table(self)-> pd.DataFrame:
+        #logger = get_run_logger()
+        # Création du DataFrame à partir des données collectées
+        df = pd.DataFrame(self.get_data())
+        # print(df.head())
+        print(f"Total de commentaires récupérés : {df.shape[0]}")
+        #logger.info(f"Total de commentaires récupérés : {df.shape[0]}")
+        return df
+    
+    # @flow(name='extraction_pipeline', description="Pipeline d'extraction des données YouTube")
+    def main_extraction(self):
+        df = self.get_data_table()
+        return df, self.video_id, self.channel_id
