@@ -1,0 +1,267 @@
+name : CI/CD YouReview
+
+# _________________________________________________________________________
+# si on fait 2 push rapides successifs sur la même branche, on ne veut pas que les 2 pipelines tournent en parallèle
+# ça annuel automatiquement l'ancienne pipeline quand une nouvelle arrive sur la mmême branche
+# _________________________________________________________________________
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+# _________________________________________________________________________
+# Déclencheurs
+# la pipeline se lance à chque push sur master ou chauque PR vers master
+# _________________________________________________________________________
+
+on :
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+# _________________________________________________________________________
+# variables globales
+# accessibles dans tous les jobs
+# _________________________________________________________________________
+
+env :
+  PYTHON_VERSION : "3.10"
+  ARTIFACT_NAME : "youreview-app"
+
+permissions:
+  contents: read
+
+jobs:
+
+# _________________________________________________________________________
+# JOB 1 - Détection des changements (pants)
+# analyse ce qui a changé pour ne tester et rebuilder que le nécessaire
+# _________________________________________________________________________
+  detect-changes :
+    name : Détection des changements
+    runs-on: ubuntu-latest
+    outputs :
+      # ces outputs sont des signaux booléens récupérés par les jobs suivants
+      src_changed : ${{steps.changes.outputs.src}}
+      tests_changed : ${{steps.changes.outputs.tests}}
+      config_changed : ${{steps.changes.outputs.config}}
+      requirements_changed : ${{steps.changes.outputs.requirements}}
+
+    steps: # la liste des étapes à exécuter dans ce job
+
+    # Ça veut dire : "utilise l'action checkout en version 4" — cette action clone ton repo dans la pipeline. uses sert à utiliser une action github existante comme une librairie
+      - uses : actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with : # les paramètres de cette action
+          # fetch-depth : 0 récupère tout l'historique
+          # nécessaire pour comparer les changements
+          fetch-depth : 0
+
+      - name : Détecter les changements par zone # autre étape du job
+        id : changes
+        uses : dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # cette action analyse de diff git et répond true ou false pour chaque filtre défini
+        with :
+          filters : |
+            src:
+              - 'src/**'
+              - 'accueil.py'
+              - 'authentification.py'
+              - 'pages/**'
+            tests:
+              - 'tests/**'
+            config:
+              - 'config/**'
+              - '.streamlit/**'
+            requirements:
+              - 'requirements.txt'
+
+# _________________________________________________________________________
+# JOB 2 - Intégration continue
+# ne tourne que si src/, tests/ ou requirements.txt ont changé
+# _________________________________________________________________________
+  ci :
+    name : Intégration continue
+    runs-on: ubuntu-latest
+    needs : detect-changes
+
+    # conditions intelligente : ce job ne tourne que si du code source ou des tests ont changé
+    if : |
+      needs.detect-changes.outputs.src_changed == 'true' ||
+      needs.detect-changes.outputs.tests_changed == 'true' ||
+      needs.detect-changes.outputs.requirements_changed == 'true'
+
+    steps:
+    - uses : actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+    - name : Setup Python ${{env.PYTHON_VERSION}}
+      uses : actions/setup-python@0b93645e9fea7318ecaed2DEFE01A598fad6e5
+      with :
+        python-version : ${{env.PYTHON_VERSION}}
+    
+    # le cache évite de réinstaller les dépendances à chaque run
+    # si requirements.txt n'a pas changé, on réutilise les packages installés précédemment
+    - name : Cache des dépendances pip
+      uses : actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a
+      with :
+        path : ~/.cache/pip
+        key : ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys : |
+          ${{ runner.os }}-pip-
+    
+    - name : Installation des dépendances
+      run : pip install -r requirements.txt
+
+    # Vérification des failles de sécurité
+    # || true = ne bloque pas la pipeline si des vulnérabilités mineures indirectes sont trouvées, on veut juste un rapport
+    - name : Audit de sécurité des dépendances
+      run : |
+      pip install pip-audit
+      pip-audit -r requirements.txt || true
+
+    # linthing avec ruff (plus rapide que flake8)
+    # verifie la qualité du code et la cohérence du code
+    # Ruff c'est un linter — un outil qui lit ton code et signale les erreurs de style, les imports inutilisés, les variables non utilisées, les mauvaises pratiques... sans exécuter le code.
+    - name : Linting avec ruff
+      run : |
+        pip install ruff
+        ruff check .
+      # ruff check src / tests/ accueil.py authentification.py pages/
+
+    # feature flags - on vérifie que le fichier de config des flags est viable et cohérent
+    - name : Vérification des feature flags
+      run : |
+        python -c "
+        import json, sys
+        try : 
+          from config.flags import FEATURES
+          print('Feature flags valides :', list(FEATURES.keys()))
+        except Exception as e :
+          print('Erreur dans les feature flags :', e)
+          sys.exit(1)
+          "
+    
+    # Tests - uniquement si tests/ ou src/ ont changé grâce à la condition du job parent
+    - name : Tests unitaires (pytest)
+      run : |
+        pip install pytest pytest-cov
+        pytest tests/ -v --cov=src --cov-report=xml
+    
+    # Upload du rapport de couverture
+    # consultable dans l'onglet Actions sur gituhb
+    - name : Upload couverture de tests
+      uses : actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+      with :
+        name : coverage-report
+        path : coverage.xml
+
+    - name : Upload couverture de tests
+      if: always()   # tourne même si pytest a échoué et produit un rapport partiel de quels tests ont échoués
+      uses : actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+
+# _________________________________________________________________________
+# Job 3 - staging
+# construit et valide l'artefact (le "paquet" prêt à déployer) 
+# ne tourne que si CI est passé
+# _________________________________________________________________________
+
+  staging :
+    name : construction artefact staging
+    runs-on: ubuntu-latest
+    needs : ci
+
+    steps:
+    - uses : actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+    - name : Setup Python ${{env.PYTHON_VERSION}}
+      uses : actions/setup-python@0b93645e9fea7318ecaed2DEFE01A598fad6e5
+      with :
+        python-version : ${{env.PYTHON_VERSION}}
+    
+    - name : Cache des dépendances pip
+      uses : actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a
+      with :
+        path : ~/.cache/pip
+        key : ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys : |
+          ${{ runner.os }}-pip-
+
+    - name : installation des dépendances
+      run : pip install -r requirements.txt
+
+    # vérification que l'app Streamlit démarre sans erreur (smoke test)
+    - name : Smoke test - vérification du démarrage
+      run : |
+        pip install streamlit
+        timeout 15 streamlit run accueil.py \
+          --server.headless true \
+          --server.port 8501 &
+        for i in {1..6}; do
+          curl -sf http://localhost:8501 && echo "App démarrée !" && break
+          echo "Tentative $i/6 - attente 5s..."
+          sleep 5
+        done
+    
+    # construction de l'atefact: 
+    # on crée un zip propre du code source sans les fichiers inutiles
+    - name : construction de l'artefact
+      run : |
+        mkdir -p artifact
+        cp -r src pages accueil.py authentification.py \
+          requirements.txt config artifact/
+        # on inclut le SHA du commit pour traçabilité
+        echo "${{ github.sha }}" > artifact/VERSION
+        zip -r ${{ env.ARTIFACT_NAME }}-${{ github.sha }}.zip artifact/
+    
+    # PROMOTION D'ARTEFACT
+    # On stocke l'artefact buildé une seule fois
+    # ce même artefact sera en prod sans rebuild
+    # garantit que staging et prod sont identiques
+    - name : Upload artefact (promotion staging -> prod)
+      uses : actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+      with :
+        name : ${{ env.ARTIFACT_NAME }}-${{ github.sha }}
+        path : ${{ env.ARTIFACT_NAME }}-${{ github.sha }}.zip
+        # Conservé 30 jours
+        retention-days : 30
+
+# _________________________________________________________________________
+# JOB 4 - LIVRAISON CONTINUE
+# Prépare tout pour le déploiement mais ne déploie pas automatiquement (manque la validation humaine)
+# déclenchement manuel requis (niveau 2)
+# _________________________________________________________________________
+
+  deliver :
+    name : Livraison prête
+    runs-on: ubuntu-latest
+    needs : staging
+    # ne tourne que sur master (pas sur les PR)
+    if : github.ref == 'refs/heads/master' && github.event_name == 'push'
+
+    steps:
+      - uses : actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      # récupère l'artefact buildé en staging
+      # c'est le même artefact - pas de rebuild
+      - name : Récupéreration de l'artefact promu
+        uses : actions/download-artifact@fa0a91b85d4f404e444306b430b98b2b38697745
+        with :
+          name : ${{ env.ARTIFACT_NAME }}-${{ github.sha }}
+
+      # résumé de livraison - visible dans Github Actions
+      - name : Résumé de la livraison 
+        run : |
+          echo "## Livraison prête " >> $GITHUB_STEP_SUMMARY
+          echo "- **Artefact** : ${{ env.ARTIFACT_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version** : ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch** : ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Date** : $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Prêt à déployer sur Streamlit Cloud !" >> $GITHUB_STEP_SUMMARY
+          echo "Streamlit Cloud se déploie automatiquement depuis master" >> $GITHUB_STEP_SUMMARY
+
+# Avant                              # Après
+# actions/checkout@v4               →  actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+# actions/setup-python@v 5           →  actions/setup-python@0b93645e9fea7318ecaed2DEFE01A598fad6e5
+# actions/cache@v 4                  →  actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a
+# actions/upload-artifact@v 4        →  actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+# actions/download-artifact@v 4      →  actions/download-artifact@fa0a91b85d4f404e444306b430b98b2b38697745
+# dorny/paths-filter@v 3             →  dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
