@@ -8,6 +8,8 @@ initialize_session_state()
 
 st.title("YOU REVIEW ")
 st.subheader("L'Analyse automatisée de vos commentaires YouTube", divider="gray")
+st.subheader("Connexion 🔐")
+st.write("Veuillez vous connecter pour accéder à l'application.")
 
 if not st.session_state.authenticated:
     with st.empty():

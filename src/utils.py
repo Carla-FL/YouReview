@@ -51,8 +51,8 @@ def authenticate_user(username, password):
         password (str): Le mot de passe"""
     
     # Page de connexion
-    st.subheader("Connexion 🔐")
-    st.write("Veuillez vous connecter pour accéder à l'application.")
+    # st.subheader("Connexion 🔐")
+    # st.write("Veuillez vous connecter pour accéder à l'application.")
     with st.form("login_form"):
             username = st.text_input(label="Nom de la chaine YouTube",placeholder=" @Squeezie / @SEB / @LenaSituations" ) # création du champ de saisie pour le nom d'utilisateur
             password = st.text_input("Mot de passe", type="password") # création du champ de saisie pour le mot de passe
