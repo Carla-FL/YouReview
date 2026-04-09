@@ -114,8 +114,8 @@ jobs:
     # || true = ne bloque pas la pipeline si des vulnérabilités mineures indirectes sont trouvées, on veut juste un rapport
     - name : Audit de sécurité des dépendances
       run : |
-      pip install pip-audit
-      pip-audit -r requirements.txt || true
+        pip install pip-audit
+        pip-audit -r requirements.txt || true
 
     # linthing avec ruff (plus rapide que flake8)
     # verifie la qualité du code et la cohérence du code
