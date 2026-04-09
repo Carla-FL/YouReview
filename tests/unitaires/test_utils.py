@@ -122,9 +122,9 @@ def test_initialize_session_state_vide():
     # 5
     assert not at.exception # on s'assure que l'exécution de l'application ne génère pas d'exception, qu'elle n'a pas crashé
     assert len(at.markdown) == 3 # on s'assure que les 3 variables sont bien écrites dans l'application
-    assert at.session_state["authenticated"]== False, "le session state autheticated doit être False" # on s'assure que la variable authenticated est bien initialisée à False
+    assert not at.session_state["authenticated"] # on s'assure que la variable authenticated est bien initialisée à False
     assert at.session_state["url_inputed"]== ""  # on s'assure que la variable url_inputed est bien initialisée à None (affiché comme une chaîne vide)
-    assert at.session_state["videoid"]== None  # on s'assure que la variable videoid est bien initialisée à None
+    assert at.session_state["videoid"] is None  # on s'assure que la variable videoid est bien initialisée à None
 
 def test_initialize_session_state_deja_initialise():
     """ ce test vérifie que si les variables de session state sont déjà initialisées (par exemple, authenticated est déjà à True), la fonction initialize_session_state() ne les réinitialise pas et conserve leurs valeurs actuelles."""
@@ -138,21 +138,21 @@ def test_initialize_session_state_deja_initialise():
     """
     at = AppTest.from_string(app_script).run()
     assert not at.exception
-    assert at.session_state["authenticated"]== True, "le session state autheticated doit rester True" # on s'assure que la variable authenticated n'est pas réinitialisée à False
-    assert at.session_state["url_inputed"] == "https://www.youtube.com/watch?v=68QYq9jcEIQ", "le session state url_inputed doit rester inchangé" # on s'assure que la variable url_inputed n'est pas réinitialisée à None
-    assert at.session_state["videoid"] == "68QYq9jcEIQ", "le session state videoid doit rester inchangé" # on s'assure que la variable videoid n'est pas réinitialisée à None
+    assert at.session_state["authenticated"] # on s'assure que la variable authenticated n'est pas réinitialisée à False
+    assert at.session_state["url_inputed"] == "https://www.youtube.com/watch?v=68QYq9jcEIQ"  # on s'assure que la variable url_inputed n'est pas réinitialisée à None
+    assert at.session_state["videoid"] == "68QYq9jcEIQ" # on s'assure que la variable videoid n'est pas réinitialisée à None
 
 
 def test_get_url():
     pass
 
 def test_authenticate_user():
-
-    app_script = """
+    pass
+    # app_script = """
     
-    """
+    # """
 
-    at = AppTest.from_string(app_script)
+    # at = AppTest.from_string(app_script)
 
 #     at.secrets["url_unput"]
     # at = AppTest.from_file("src/utils.py").run()
