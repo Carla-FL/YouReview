@@ -149,14 +149,15 @@ jobs:
     # Upload du rapport de couverture
     # consultable dans l'onglet Actions sur gituhb
     - name : Upload couverture de tests
+      if: always() 
       uses : actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with :
         name : coverage-report
         path : coverage.xml
 
-    - name : Upload couverture de tests
-      if: always()   # tourne même si pytest a échoué et produit un rapport partiel de quels tests ont échoués
-      uses : actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+    # - name : Upload couverture de tests
+    #   if: always()   # tourne même si pytest a échoué et produit un rapport partiel de quels tests ont échoués
+    #   uses : actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
 
 # _________________________________________________________________________
 # Job 3 - staging
