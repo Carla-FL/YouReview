@@ -97,7 +97,7 @@ def test_url2id_url_long_sans_id():
         url2id("https://www.youtube.com/watch?v=")
 
 # ======================================== INITIALIZE SESSION STATE ================================================================================
-def test_cles_creees_si_absentes(self):
+def test_cles_creees_si_absentes():
     """Les 3 clés de session sont créées si elles n'existent pas"""
     # Arrange : app minimale qui appelle initialize_session_state
     app_script = """
