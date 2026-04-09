@@ -52,7 +52,7 @@ jobs:
 
     # Ça veut dire : "utilise l'action checkout en version 4" — cette action clone ton repo dans la pipeline. uses sert à utiliser une action github existante comme une librairie
       - uses : actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with : # les paramètres de cette action
+        with : # les paramètres de cette action 
           # fetch-depth : 0 récupère tout l'historique
           # nécessaire pour comparer les changements
           fetch-depth : 0
@@ -94,14 +94,14 @@ jobs:
     steps:
     - uses : actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
     - name : Setup Python ${{env.PYTHON_VERSION}}
-      uses : actions/setup-python@0b93645e9fea7318ecaed2DEFE01A598fad6e5
+      uses : actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55
       with :
         python-version : ${{env.PYTHON_VERSION}}
     
     # le cache évite de réinstaller les dépendances à chaque run
     # si requirements.txt n'a pas changé, on réutilise les packages installés précédemment
     - name : Cache des dépendances pip
-      uses : actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a
+      uses : actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf
       with :
         path : ~/.cache/pip
         key : ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
@@ -173,12 +173,12 @@ jobs:
     - uses : actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name : Setup Python ${{env.PYTHON_VERSION}}
-      uses : actions/setup-python@0b93645e9fea7318ecaed2DEFE01A598fad6e5
+      uses : actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55
       with :
         python-version : ${{env.PYTHON_VERSION}}
     
     - name : Cache des dépendances pip
-      uses : actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a
+      uses : actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf
       with :
         path : ~/.cache/pip
         key : ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
@@ -261,8 +261,8 @@ jobs:
 
 # Avant                              # Après
 # actions/checkout@v4               →  actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-# actions/setup-python@v 5           →  actions/setup-python@0b93645e9fea7318ecaed2DEFE01A598fad6e5
-# actions/cache@v 4                  →  actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a
-# actions/upload-artifact@v 4        →  actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
-# actions/download-artifact@v 4      →  actions/download-artifact@fa0a91b85d4f404e444306b430b98b2b38697745
+# actions/setup-python@v 5           →  actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55
+# actions/cache@v 4                  →  actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf
+# actions/upload-artifact@v 4        →  actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+# actions/download-artifact@v 4      →  actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
 # dorny/paths-filter@v 3             →  dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
