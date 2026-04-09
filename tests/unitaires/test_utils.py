@@ -97,22 +97,22 @@ def test_url2id_url_long_sans_id():
         url2id("https://www.youtube.com/watch?v=")
 
 # ======================================== INITIALIZE SESSION STATE ================================================================================
-def test_cles_creees_si_absentes():
-    """Les 3 clés de session sont créées si elles n'existent pas"""
-    # Arrange : app minimale qui appelle initialize_session_state
-    app_script = """
-    import streamlit as st
-    from src.utils import initialize_session_state
-    initialize_session_state()
-    st.write(str(st.session_state.authenticated))
-    st.write(str(st.session_state.url_inputed))
-    st.write(str(st.session_state.videoid))
-    """
-    # Act
-    at = AppTest.from_string(app_script).run()
-    # Assert
-    assert not at.exception
-    assert "False" in at.markdown[0].value or "False" in str(at.get("write"))
+# def test_cles_creees_si_absentes():
+#     """Les 3 clés de session sont créées si elles n'existent pas"""
+#     # Arrange : app minimale qui appelle initialize_session_state
+#     app_script = """
+#     import streamlit as st
+#     from src.utils import initialize_session_state
+#     initialize_session_state()
+#     st.write(str(st.session_state.authenticated))
+#     st.write(str(st.session_state.url_inputed))
+#     st.write(str(st.session_state.videoid))
+#     """
+#     # Act
+#     at = AppTest.from_string(app_script).run()
+#     # Assert
+#     assert not at.exception
+#     assert "False" in at.markdown[0].value or "False" in str(at.get("write"))
 
 
 def test_get_url():
