@@ -244,7 +244,7 @@ jobs:
       # récupère l'artefact buildé en staging
       # c'est le même artefact - pas de rebuild
       - name : Récupéreration de l'artefact promu
-        uses : actions/download-artifact@fa0a91b85d4f404e444306b430b98b2b38697745
+        uses : actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with :
           name : ${{ env.ARTIFACT_NAME }}-${{ github.sha }}
 
