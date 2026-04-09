@@ -1,7 +1,7 @@
 import pytest
 from src.utils import url2id
 # from unittest.mock import patch, MagicMock
-from streamlit.testing.v1 import AppTest
+# from streamlit.testing.v1 import AppTest
 
 # ========================================
 # TESTS UNITAIRES pour les fonctions de utils.py
