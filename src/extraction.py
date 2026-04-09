@@ -1,8 +1,8 @@
 
 from pymongo.mongo_client import MongoClient
 from googleapiclient.discovery import build
-from pymongo.server_api import ServerApi
-from contextlib import contextmanager
+# from pymongo.server_api import ServerApi
+# from contextlib import contextmanager
 from dotenv import load_dotenv
 import certifi
 import os

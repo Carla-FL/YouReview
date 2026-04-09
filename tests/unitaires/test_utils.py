@@ -1,6 +1,6 @@
 import pytest
-from src.utils import url2id, initialize_session_state
-from unittest.mock import patch, MagicMock
+from src.utils import url2id
+# from unittest.mock import patch, MagicMock
 from streamlit.testing.v1 import AppTest
 
 # ========================================
@@ -101,13 +101,13 @@ def test_cles_creees_si_absentes(self):
     """Les 3 clés de session sont créées si elles n'existent pas"""
     # Arrange : app minimale qui appelle initialize_session_state
     app_script = """
-import streamlit as st
-from src.utils import initialize_session_state
-initialize_session_state()
-st.write(str(st.session_state.authenticated))
-st.write(str(st.session_state.url_inputed))
-st.write(str(st.session_state.videoid))
-"""
+    import streamlit as st
+    from src.utils import initialize_session_state
+    initialize_session_state()
+    st.write(str(st.session_state.authenticated))
+    st.write(str(st.session_state.url_inputed))
+    st.write(str(st.session_state.videoid))
+    """
     # Act
     at = AppTest.from_string(app_script).run()
     # Assert
@@ -119,11 +119,6 @@ def test_get_url():
     pass
 
 def test_authenticate_user():
-
-    app_scrit = """
-    import streamlit as st
-    
-"""
     pass
 #     app_script = """
 #     import streamlit as st

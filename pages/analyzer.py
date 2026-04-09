@@ -1,6 +1,6 @@
 import streamlit as st
-from src.utils import initialize_session_state, authenticate_user, get_url, url2id
-from src.extraction import DatabaseInteraction
+from src.utils import initialize_session_state, authenticate_user, get_url
+# from src.extraction import DatabaseInteraction
 
 # Initialize session state for authentication
 initialize_session_state()

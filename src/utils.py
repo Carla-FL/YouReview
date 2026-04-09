@@ -191,7 +191,7 @@ def get_data(self):
             break
         time.sleep(1)
 
-    print(f'data uploaded')
+    print('data uploaded')
     # logger.info(f'data uploaded')
     return comments_data
 
@@ -310,7 +310,7 @@ class Extraction :
                 break
             time.sleep(1)
 
-        print(f'data uploaded')
+        print('data uploaded')
         # logger.info(f'data uploaded')
         return comments_data
 

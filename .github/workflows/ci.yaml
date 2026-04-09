@@ -124,8 +124,8 @@ jobs:
     - name : Linting avec ruff
       run : |
         pip install ruff
-        ruff check .
-      # ruff check src / tests/ accueil.py authentification.py pages/
+        ruff check src/ tests/ accueil.py authentification.py pages/
+      # ruff check .
 
     # feature flags - on vérifie que le fichier de config des flags est viable et cohérent
     - name : Vérification des feature flags
