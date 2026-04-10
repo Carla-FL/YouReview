@@ -142,20 +142,120 @@ def test_initialize_session_state_deja_initialise():
     assert at.session_state["url_inputed"] == "https://www.youtube.com/watch?v=68QYq9jcEIQ"  # on s'assure que la variable url_inputed n'est pas réinitialisée à None
     assert at.session_state["videoid"] == "68QYq9jcEIQ" # on s'assure que la variable videoid n'est pas réinitialisée à None
 
+# ======================================== AUTHENTICATE USER ================================================================================
+def test_authenticate_user_valide():
+    """ la fonction authenticate_user affiche un formuler de connexion streamlit et l'utilisateur soumet le formulaire avec
+        - username
+        - password
+        si username + password sont corrects -> autneticated = True
+        on test que la fonction authenticate_user affiche bien le formulaire de connexion et que lorsque l'utilisateur soumet le formulaire avec des identifiants corrects, la variable authenticated est mise à True dans le session state. 
+        """
+    app_script = """
+        import streamlit as st
+        with st.form("login_form"):
+                username = st.text_input(label="Nom de la chaine YouTube",placeholder=" @Squeezie / @SEB / @LenaSituations" ) # création du champ de saisie pour le nom d'utilisateur
+                password = st.text_input("Mot de passe", type="password") # création du champ de saisie pour le mot de passe
+                submit_button = st.form_submit_button("Se connecter") # création du boutton
+
+        # st.write("Veuillez vous connecter avec votre compte Google pour accéder à l'application.")
+        if submit_button: # si le boutton est cliqué
+            if not st.session_state.authenticated:
+                if username == st.secrets.admin.username and password == st.secrets.admin.password: # vérification des identifiants et mot de passe
+                    st.session_state.authenticated = True # mise à jour de l'état de la session
+                    st.session_state.user = username # stockage du nom d'utilisateur dans la session
+                    st.success("Connexion réussie ! Vous pouvez maintenant accéder à l'application.")
+                else:
+                    st.error("Nom d'utilisateur ou mot de passe incorrect.")
+                """
+    
+    at = AppTest.from_string(app_script)
+
+    at.secrets["admin"] = "testuser"
+    at.secrets["password"] = "testpass"
+
+    at = at.run()
+
+    at.text_input("Nom de la chaine YouTube").enter("testuser").run()
+    at.text_input("Mot de passe").enter("testpass").run()
+    at.form_submit_button("Se connecter").click().run()
+
+    assert not at.exception
+    assert at.session_state["authenticated"] 
+
+def test_authenticate_user_invalide():
+    """ 
+    On peut aussi tester que si les identifiants sont incorrects, authenticated reste à False et un message d'erreur s'affiche.
+        """
+    app_script = """
+        import streamlit as st
+        with st.form("login_form"):
+                username = st.text_input(label="Nom de la chaine YouTube",placeholder=" @Squeezie / @SEB / @LenaSituations" ) # création du champ de saisie pour le nom d'utilisateur
+                password = st.text_input("Mot de passe", type="password") # création du champ de saisie pour le mot de passe
+                submit_button = st.form_submit_button("Se connecter") # création du boutton
+
+        # st.write("Veuillez vous connecter avec votre compte Google pour accéder à l'application.")
+        if submit_button: # si le boutton est cliqué
+            if not st.session_state.authenticated:
+                if username == st.secrets.admin.username and password == st.secrets.admin.password: # vérification des identifiants et mot de passe
+                    st.session_state.authenticated = True # mise à jour de l'état de la session
+                    st.session_state.user = username # stockage du nom d'utilisateur dans la session
+                    st.success("Connexion réussie ! Vous pouvez maintenant accéder à l'application.")
+                else:
+                    st.error("Nom d'utilisateur ou mot de passe incorrect.")
+                """
+    
+    at = AppTest.from_string(app_script)
+
+    at.secrets["admin"] = "testuser"
+    at.secrets["password"] = "testpass"
+
+    at = at.run()
+
+    at.text_input("Nom de la chaine YouTube").enter("testuser").run()
+    at.text_input("Mot de passe").enter("testpassinvalide").run()
+    at.form_submit_button("Se connecter").click().run()
+
+    assert not at.exception
+    assert not at.session_state["authenticated"]
+    assert len(at.error) > 0
+
+def test_authenticate_user_vide():
+    """ 
+    On peut aussi tester que si les identifiants sont vides, authenticated reste à False et un message d'erreur s'affiche.
+        """
+    app_script = """
+        import streamlit as st
+        with st.form("login_form"):
+                username = st.text_input(label="Nom de la chaine YouTube",placeholder=" @Squeezie / @SEB / @LenaSituations" ) # création du champ de saisie pour le nom d'utilisateur
+                password = st.text_input("Mot de passe", type="password") # création du champ de saisie pour le mot de passe
+                submit_button = st.form_submit_button("Se connecter") # création du boutton
+
+        # st.write("Veuillez vous connecter avec votre compte Google pour accéder à l'application.")
+        if submit_button: # si le boutton est cliqué
+            if not st.session_state.authenticated:
+                if username == st.secrets.admin.username and password == st.secrets.admin.password: # vérification des identifiants et mot de passe
+                    st.session_state.authenticated = True # mise à jour de l'état de la session
+                    st.session_state.user = username # stockage du nom d'utilisateur dans la session
+                    st.success("Connexion réussie ! Vous pouvez maintenant accéder à l'application.")
+                else:
+                    st.error("Nom d'utilisateur ou mot de passe incorrect.")
+                """
+    
+    at = AppTest.from_string(app_script)
+
+    at.secrets["admin"] = "testuser"
+    at.secrets["password"] = "testpass"
+
+    at = at.run()
+
+    at.form_submit_button("Se connecter").click().run()
+
+    assert not at.exception
+    assert not at.session_state["authenticated"]
+    assert len(at.error) > 0
+
+# ======================================== GET URL ================================================================================
+
 
 def test_get_url():
     pass
-
-def test_authenticate_user():
-    pass
-    # app_script = """
-    
-    # """
-
-    # at = AppTest.from_string(app_script)
-
-#     at.secrets["url_unput"]
-    # at = AppTest.from_file("src/utils.py").run()
-
-    # at.text_input("url_input").enter("https://youtu.be/68QYq9jcEIQ").run()
-    # at.button("submit_button").click().run()
