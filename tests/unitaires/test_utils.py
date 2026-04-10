@@ -146,7 +146,7 @@ class TestInitializeSessionState:
 
 # ======================================== AUTHENTICATE USER ================================================================================
 class TestAuthenticateUser:
-    def set_up(self):
+    def setup_method(self):
         self.app_script = """
         import streamlit as st
         if "authenticated" not in st.session_state:
