@@ -183,7 +183,8 @@ class TestAuthenticateUser:
 
         at.text_input[0].set_value("testuser").run()  # premier champ
         at.text_input[1].set_value("testpass").run()  # deuxième champ
-        at.form("login_form").submit().run()
+        # at.form("login_form").submit().run()
+        at.button[0].click().run()
 
         assert not at.exception
         assert at.session_state["authenticated"] 
@@ -201,7 +202,8 @@ class TestAuthenticateUser:
 
         at.text_input[0].set_value("testuser").run()
         at.text_input[1].set_value("testpassinvalide").run()
-        at.form("login_form").submit().run()
+        # at.form("login_form").submit().run()
+        at.button[0].click().run()
 
         assert not at.exception
         assert not at.session_state["authenticated"]
@@ -218,7 +220,8 @@ class TestAuthenticateUser:
 
         at = at.run()
 
-        at.form("login_form").submit().run()
+        #at.form("login_form").submit().run()
+        at.button[0].click().run()
 
         assert not at.exception
         assert not at.session_state["authenticated"]
