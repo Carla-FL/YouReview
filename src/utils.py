@@ -4,7 +4,7 @@ import time
 import pandas as pd
 import streamlit as st
 
-from extraction import APIInteraction
+from src.extraction import APIInteraction
 
 def initialize_session_state():
     """Initialise les variables de session si elles n'existent pas"""
