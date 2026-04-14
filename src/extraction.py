@@ -91,7 +91,7 @@ class APIInteraction:
     """
     API INTERACTION :
 
-    Classe destinée à gérer les interactions avec une API, notamment pour établir une connexion sécurisée et gérer les ressources de manière efficace.
+    Classe destinée à gérer les interactions avec l'API YouTube, notamment pour établir une connexion sécurisée et gérer les ressources de manière efficace.
     Cette classe est conçue pour être utilisée dans un contexte de gestion de ressources (avec l'instruction "with") afin de garantir que les connexions à l'API sont correctement fermées après utilisation, même en cas d'erreur.
 
     Paramètres
