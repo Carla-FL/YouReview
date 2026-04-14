@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 from langdetect import detect
 from googleapiclient.discovery import build
+from extraction import APIInteraction
 
 def initialize_session_state():
     """Initialise les variables de session si elles n'existent pas"""
@@ -77,8 +78,8 @@ def url2id(video_url:str) -> str:
     Returns:
         str: L'ID de la vidéo YouTube"""
 
-    long_pattern = r'^(https:\/\/www\.youtube\.com\/watch\?v=).{11}$' # nouveau pattern pour les URL classiques de YouTube
-    short_pattern = r'^(https:\/\/youtu.be/).{11}$' # nouveau pattern pour les URL courtes de YouTube
+    long_pattern = r'^(https:\/\/www\.youtube\.com\/watch\?v=).{11}' # pattern pour les URL classiques de YouTube (quand on le récupère à partir de la miniature)
+    short_pattern = r'^(https:\/\/youtu.be/).{11}$' # pattern pour les URL courtes de YouTube (quand on regarde la vidéo)
     
     if re.match(short_pattern, video_url) :
         print("Valid YouTube URL")
@@ -195,7 +196,7 @@ def get_data(self):
     # logger.info(f'data uploaded')
     return comments_data
 
-class Extraction :
+class DataCollector :
     """
     Classe d'extraction des données YouTube à partir d'une URL de vidéo.
     
@@ -209,122 +210,127 @@ class Extraction :
         self.video_url = video_url
         self.video_id = video_id
         self.channel_id = None
+        self.language = None
+        self.nb_comments = None
+        self.video_title = None
 
+
+
+    def get_info_video(self):
+        """
+        Utilise la classe APIInteraction pour récupérer les informations d'une vidéo YouTube en utilisant l'API YouTube Data v3.
+        Ici on récupère l'id de la chaîne, la langue de la vidéo, le nombre de commentaires et le titre de la vidéo.
+        """
+        with APIInteraction() as api_interaction :
+            response = api_interaction.api_client.videos().list(
+            part="snippet,statistics",
+            id=self.video_id,
+            maxResults=1).execute()
+        if not response.get("items"):
+            raise ValueError(f"Vidéo introuvable : {self.video_id}")
+        item = response["items"][0]
+        self.channel_id = item["snippet"]["channelId"]
+        self.language = item["snippet"].get("defaultLanguage", "")
+        self.nb_comments = int(item["statistics"].get("commentCount", 0))
+        self.video_title = item["snippet"]["title"]
+
+
+    def control_conformity(self) -> bool:
+        """
+        Cette méthode vérifie que la vidéo respecte les critères de conformité : langue française et au moins 200 commentaires.
+        On utilise les informations récupérées par la méthode get_info_video pour effectuer ces vérifications.
+
+        Returns:
+            booleen: le résultat du test de fonromité True ou False
+        """
+        # Vérifier la langue et le nombre de commentaires
+        if self.language == 'fr' and self.nb_comments >= 200 :
+            return True
+        else:
+            return False
+        
 
     def get_data(self):
-        # appel de l'API YouTube Data v3
-        api_key = self.api_key 
-        youtube = build("youtube", "v3", developerKey=api_key)
+        # on récupère les infos si pas encore fait
+        if self.channel_id is None:
+            self.get_info_video()
 
-        # Paramètres initiaux pour la requête
-        video_id = self.video_id
-        comments_data = []
-        next_page_token = None
+        if not self.control_conformity() :
+            raise ValueError("La vidéo ne respecte pas les critères de conformité : langue française et au moins 200 commentaires.")
+        else :
+            # Paramètres initiaux pour la requête
+            comments_data = []
+            next_page_token = None
 
-        # Récupérer les infos de la vidéo
-        try:
-            video_response = youtube.videos().list(
-                part="snippet,statistics",
-                id=video_id
-            ).execute()
-            # logger.info(f"Récupération des infos de la vidéo pour l'ID : {video_id}")
-        except Exception as e:
-            raise RuntimeError(f"Impossible de récupérer les infos de la vidéo : {e}")
+            with APIInteraction() as api_interaction :
+                while True:
+                    response = api_interaction.api_client.commentThreads().list(
+                    part="snippet",
+                    videoId=self.video_id,
+                    maxResults=100,
+                    order="time",
+                    textFormat="plainText",
+                    pageToken=next_page_token
+                    ).execute()
+                    # Ajouter les commentaires récupérés à la liste
+                    extraction_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                    for item in response.get("items", []):
+                        comment_info = item["snippet"]["topLevelComment"]["snippet"]
+                        # Vérifier si le commentaire est celui de l'auteur de la vidéo :
+                        if self.channel_id == comment_info.get("authorChannelId"): # si c'est le cas
+                            continue # on passe au suivant 
+                        
+                        comments_data.append({
+                            "url": self.video_url,
+                            "id": item["id"],
+                            "titre" : self.video_title,
+                            "channelId": comment_info.get("channelId"),
+                            "videoId": comment_info.get("videoId"),	
+                            "publishedAt": comment_info.get("publishedAt"),
+                            "comment": comment_info.get("textOriginal"),
+                            "likeCount": comment_info.get("likeCount"),
+                            "extractedAt": extraction_date
+                        })
 
-        try:
-            video_info = video_response["items"][0]["snippet"]
-            self.channel_id = video_info["channelId"]
-            # self.exisitng_comments_id =  Load().check_exisitng_data(self.channel_id, self.video_id)
-            # logger.info(f"ID de la chaîne : {self.channel_id}")
-            
-        except Exception as e:
-            raise RuntimeError(f"Impossible de récupérer l'id de la chaine' : {e}")
-        
+                    # Vérifier s'il y a une page suivante
+                    # time.sleep(5)
+                    next_page_token = response.get("nextPageToken")
+                    if not next_page_token:
+                        break
+                    time.sleep(0.5)
 
-        # Vérifier la langue de la chaîne
-        try:
-
-            video_title = video_info["title"]
-            video_description = video_info["description"]
-            lang = detect(video_title + " " + video_description)
-            print(f"Langue de la chaîne : {lang}")
-
-            if lang != "fr":
-                raise ValueError(f"Langue détectée : {lang.upper()}, ce script ne traite que les chaînes françaises.")
-        except Exception as e:
-            raise RuntimeError(f"Impossible de vérifier la langue de la chaîne : {e}")
-        
-        # Vérifier le nombre de commentaires
-        try:
-            video_nb_comments = int(video_response["items"][0]["statistics"]["commentCount"])
-            if video_nb_comments<200:
-                raise ValueError('Error : not enough comments')
-        except Exception as e:
-            raise RuntimeError(f"Impossible de récupérer le nombre de commentaires : {e}")
-        
-
-        # Étape 3 – Collecte des commentaires
-        print("Langue valide \n"
-        "Nombre de commentaires suffisant \n"
-        "Récupération des commentaires en cours...")
-        # logger.info("Langue valide \n"
-        # "Nombre de commentaires suffisant \n"
-        # "Récupération des commentaires en cours...")
-
-        while True:
-            response = youtube.commentThreads().list(
-            part="snippet",
-            videoId=video_id,
-            maxResults=100,
-            order="time",
-            textFormat="plainText",
-            pageToken=next_page_token
-            ).execute()
-            
-            # Ajouter les commentaires récupérés à la liste
-            extraction_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            for item in response.get("items", []):
-                # logger.info(f"on compare : {item['id']} et {self.last_comment}")
-                comment_info = item["snippet"]["topLevelComment"]["snippet"]
-                # if item["id"] not in self.exisitng_comments_id:
-                # Vérifier si le commentaire a déjà été extrait :
-                if comment_info.get("channelId") == comment_info.get("authorChannelId"):
-                    continue
-                
-                comments_data.append({
-                    "url": self.video_url,
-                    "id": item["id"],
-                    "titre" : video_title,
-                    "channelId": comment_info.get("channelId"),
-                    "videoId": comment_info.get("videoId"),	
-                    "publishedAt": comment_info.get("publishedAt"),
-                    "comment": comment_info.get("textOriginal"),
-                    "likeCount": comment_info.get("likeCount"),
-                    "extractedAt": extraction_date
-                })
-
-            # Vérifier s'il y a une page suivante
-            time.sleep(5)
-            next_page_token = response.get("nextPageToken")
-            if not next_page_token:
-                break
-            time.sleep(1)
-
-        print('data uploaded')
-        # logger.info(f'data uploaded')
-        return comments_data
+            print(f'data uploaded : {len(comments_data)} commentaires au total')
+            return comments_data
 
     # Fonction pour créer un DataFrame à partir des données collectées
-    def get_data_table(self)-> pd.DataFrame:
-        #logger = get_run_logger()
+    def to_data_table(self)-> pd.DataFrame:
         # Création du DataFrame à partir des données collectées
         df = pd.DataFrame(self.get_data())
         # print(df.head())
         print(f"Total de commentaires récupérés : {df.shape[0]}")
-        #logger.info(f"Total de commentaires récupérés : {df.shape[0]}")
         return df
     
-    # @flow(name='extraction_pipeline', description="Pipeline d'extraction des données YouTube")
+
     def main_extraction(self):
-        df = self.get_data_table()
+        df = self.to_data_table()
         return df, self.video_id, self.channel_id
+    
+class DataStorage :
+    """
+    Classe de stockage des données collectées dans une base de données MongoDB Atlas.
+    Cette classe utilise un gestionnaire de contexte pour garantir que la connexion à la base de données est correctement fermée après utilisation, même en cas d'erreur.
+
+    Args:
+        data (pd.DataFrame): Le DataFrame contenant les données à stocker
+        video_id (str): L'ID de la vidéo YouTube associée aux données
+        channel_id (str): L'ID de la chaîne YouTube associée aux données
+    """
+    def __init__(self, data:pd.DataFrame, video_id:str, channel_id:str):
+        self.data = data
+        self.video_id = video_id
+        self.channel_id = channel_id
+
+    def store_data(self):
+        with DatabaseInteraction() as db_interaction:
+            # Code pour stocker les données dans la base de données MongoDB Atlas
+            pass
