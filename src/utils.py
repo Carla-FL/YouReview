@@ -331,6 +331,6 @@ class DataStorage :
         self.channel_id = channel_id
 
     def store_data(self):
-        with DatabaseInteraction() as db_interaction:
+        # with DatabaseInteraction() as db_interaction:
             # Code pour stocker les données dans la base de données MongoDB Atlas
             pass
