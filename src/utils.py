@@ -77,7 +77,7 @@ def url2id(video_url:str) -> str:
     Returns:
         str: L'ID de la vidéo YouTube"""
 
-    long_pattern = r'^(https:\/\/www\.youtube\.com\/watch\?v=).{11}' # pattern pour les URL classiques de YouTube (quand on le récupère à partir de la miniature)
+    long_pattern = r'^((https:\/\/www\.youtube\.com\/watch\?v=).{11}\&)|((https:\/\/www\.youtube\.com\/watch\?v=).{11}$)' #r'^(https:\/\/www\.youtube\.com\/watch\?v=).{11}\&' # pattern pour les URL classiques de YouTube (quand on le récupère à partir de la miniature)
     short_pattern = r'^(https:\/\/youtu.be/).{11}$' # pattern pour les URL courtes de YouTube (quand on regarde la vidéo)
     
     if re.match(short_pattern, video_url) :
