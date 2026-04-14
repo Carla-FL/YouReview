@@ -3,8 +3,7 @@ import os
 import time
 import pandas as pd
 import streamlit as st
-from langdetect import detect
-from googleapiclient.discovery import build
+
 from extraction import APIInteraction
 
 def initialize_session_state():
