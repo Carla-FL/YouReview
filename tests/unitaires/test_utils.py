@@ -44,6 +44,12 @@ class TestUrl2Id:
         url = "https://www.youtube.com/watch?v=68QYq9jcEIQ"
         result = url2id(url)
         assert len(result) == 11, f"Expected id length of 11 but got {len(result)}"
+    
+    def test_url2id_url_longue_avec_parametres(self):
+        """ test une url au format long qui contient des paramètres supplémentaires, comme le nombre de secondes déjà visioné de la vidéo (ex: https://www.youtube.com/watch?v=Wfr3Ks4A2IM&t=281s) et vérifie que la fonction url2id extrait correctement l'id de la vidéo sans être affectée par les paramètres supplémentaires."""
+        url = "https://www.youtube.com/watch?v=68QYq9jcEIQ&t=30s"
+        result = url2id(url)
+        assert result == "68QYq9jcEIQ", f"Expected '68QYq9jcEIQ' but got {result}"
 
     # _______URL INVALIDE__________
     def test_url2id_url_vide(self):
@@ -227,7 +233,7 @@ class TestAuthenticateUser:
         assert not at.session_state["authenticated"]
         assert len(at.error) > 0
 
-# ======================================== GET URL ================================================================================
+# ======================================== GET DATA COLLECTOR ================================================================================
 
 
 def test_get_url():
