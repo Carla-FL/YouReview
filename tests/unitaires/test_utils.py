@@ -330,3 +330,311 @@ class TestAPIInteraction :
             with pytest.raises(Exception, match="Clé API invalide"):
                 with APIInteraction():
                     pass
+
+
+# ========================================= TEST DatabaseInteractio ================================================================================
+class TestDatabaseInteraction:
+    pass
+
+# ========================================= TEST DataCollector ================================================================================
+# DataCollector a 4 méthodes à tester :
+#   get_info_video()      → appel API videos().list()
+#   control_conformity()  → logique pure, PAS d'appel API → pas de mock
+#   get_data()            → appel API commentThreads().list() en boucle
+#   to_data_table()       → appelle get_data() et construit un DataFrame
+#
+# Stratégie :
+#   - get_info_video et get_data : on mock APIInteraction
+#   - control_conformity : on injecte directement les attributs, pas de mock
+#   - to_data_table : on mock get_data() directement
+# =============================================================================================================================================
+class TestDataCollector:
+    def setup_method(self):
+        """
+        Tourne avant chaque test.
+        On crée un DataCollector avec des valeurs fixes réutilisables.
+        On ne fait AUCUN appel API ici.
+        """
+        # on instancie sans appel API car get_info_video() n'est plus dans __init__
+        with patch.dict(os.environ, {"DEVELOPER_KEY": "fake_key"}):
+            from src.utils import DataCollector
+            self.collector = DataCollector(
+                video_url="https://youtu.be/68QYq9jcEIQ",
+                video_id="68QYq9jcEIQ"
+            )
+    
+
+    @patch("src.extraction.build")
+    def test_get_info_video_remplit_attributs(self, mock_build):
+        """
+        get_info_video() doit remplir channel_id, language,
+        nb_comments et video_title à partir de la réponse API.
+        
+        Comment on simule la réponse API ?
+            → On crée un dict qui ressemble exactement à ce que YouTube renvoie
+            → On le branche sur mock_youtube.videos().list().execute()
+            → Quand le code appelle .execute(), il reçoit notre dict
+        """
+
+        # Arrange — réponse API simulée (structure identique au vrai YouTube)
+        fausse_reponse_api = {
+            "items": [{
+                "snippet": {
+                    "channelId": "UC_channel_123",
+                    "defaultLanguage": "fr",
+                    "title": "Ma super vidéo"
+                },
+                "statistics": {
+                    "commentCount": "500"
+                }
+            }]
+        }
+
+        # on configure la chaîne d'appels
+        # api_client.videos().list().execute() → fausse_reponse_api
+        mock_youtube = MagicMock()
+        mock_youtube.videos().list().execute.return_value = fausse_reponse_api
+        mock_build.return_value = mock_youtube
+
+        # Act
+        with patch.dict(os.environ, {"DEVELOPER_KEY": "fake_key"}):
+            self.collector.get_info_video()
+
+        # Assert — les 4 attributs doivent être remplis correctement
+        assert self.collector.channel_id == "UC_channel_123"
+        assert self.collector.language == "fr"
+        assert self.collector.nb_comments == 500   # converti en int
+        assert self.collector.video_title == "Ma super vidéo"
+
+    @patch("src.extraction.build")
+    def test_get_info_video_video_introuvable(self, mock_build):
+        """
+        Si l'API retourne une liste vide, get_info_video() doit lever ValueError.
+        
+        Cas réel : video_id inexistant ou vidéo supprimée.
+        """
+
+        # Arrange — réponse avec items vide (vidéo introuvable)
+        mock_youtube = MagicMock()
+        mock_youtube.videos().list().execute.return_value = {"items": []}
+        mock_build.return_value = mock_youtube
+
+        # Act + Assert
+        with patch.dict(os.environ, {"DEVELOPER_KEY": "fake_key"}):
+            with pytest.raises(ValueError, match="introuvable"):
+                self.collector.get_info_video()
+
+    def test_conformite_langue_fr_et_assez_commentaires(self):
+        """
+        Vidéo en français avec 500 commentaires → conforme.
+        
+        Pourquoi pas de mock ?
+            → control_conformity() ne fait aucun appel API
+            → elle lit juste self.language et self.nb_comments
+            → on injecte directement ces valeurs dans l'objet
+        """
+
+        # Arrange — on injecte les attributs directement
+        self.collector.language = "fr"
+        self.collector.nb_comments = 500
+
+        # Act
+        result = self.collector.control_conformity()
+
+        # Assert
+        assert result == True
+
+    def test_conformite_langue_non_fr(self):
+        """Vidéo en anglais → non conforme même avec assez de commentaires."""
+        self.collector.language = "en"
+        self.collector.nb_comments = 500
+        assert self.collector.control_conformity() == False
+
+    def test_conformite_pas_assez_commentaires(self):
+        """Vidéo française avec moins de 200 commentaires → non conforme."""
+        self.collector.language = "fr"
+        self.collector.nb_comments = 50
+        assert self.collector.control_conformity() == False
+
+    def test_conformite_exactement_200_commentaires(self):
+        """
+        200 commentaires exactement → conforme (cas limite).
+        
+        Pourquoi tester ce cas limite ?
+            → La condition est >= 200
+            → 199 = non conforme, 200 = conforme
+            → Ce genre d'erreur (> vs >=) est fréquent
+        """
+        self.collector.language = "fr"
+        self.collector.nb_comments = 200
+        assert self.collector.control_conformity() == True
+
+    @patch("src.extraction.build")
+    def test_get_data_retourne_liste_de_dicts(self, mock_build):
+        """
+        get_data() doit retourner une liste de dicts avec les bons champs.
+        
+        Comment on simule la pagination ?
+            → Premier appel : items + nextPageToken = "page2"
+            → Deuxième appel : items + nextPageToken = None (fin)
+            → side_effect avec une liste = chaque appel consomme un élément
+        """
+
+        # Arrange — on pré-remplit les attributs pour éviter get_info_video()
+        self.collector.channel_id = "UC_channel_123"
+        self.collector.language = "fr"
+        self.collector.nb_comments = 500
+        self.collector.video_title = "Ma vidéo"
+
+        # réponse simulée pour commentThreads
+        def make_comment(comment_id, author_id):
+            """Helper pour créer un commentaire simulé"""
+            return {
+                "id": comment_id,
+                "snippet": {
+                    "topLevelComment": {
+                        "snippet": {
+                            "channelId": "UC_channel_123",
+                            "authorChannelId": author_id,
+                            "videoId": "68QYq9jcEIQ",
+                            "publishedAt": "2024-01-01T00:00:00Z",
+                            "textOriginal": "Super vidéo !",
+                            "likeCount": 5
+                        }
+                    }
+                }
+            }
+
+        # page 1 → a un nextPageToken
+        page_1 = {
+            "items": [make_comment("comment_001", "UC_viewer_A")],
+            "nextPageToken": "token_page_2"
+        }
+        # page 2 → pas de nextPageToken = fin de la pagination
+        page_2 = {
+            "items": [make_comment("comment_002", "UC_viewer_B")],
+            # pas de nextPageToken → la boucle s'arrête
+        }
+
+        # side_effect = liste → premier appel retourne page_1,
+        #                        deuxième appel retourne page_2
+        mock_youtube = MagicMock()
+        mock_youtube.commentThreads().list().execute.side_effect = [page_1, page_2]
+        mock_build.return_value = mock_youtube
+
+        # Act
+        with patch.dict(os.environ, {"DEVELOPER_KEY": "fake_key"}):
+            result = self.collector.get_data()
+
+        # Assert
+        assert isinstance(result, list)
+        assert len(result) == 2   # 1 commentaire par page
+        # les champs attendus sont présents
+        champs = {"url", "id", "titre", "channelId", "videoId",
+                "publishedAt", "comment", "likeCount", "extractedAt"}
+        assert champs.issubset(result[0].keys())
+
+    @patch("src.extraction.build")
+    def test_get_data_ignore_commentaire_auteur(self, mock_build):
+        """
+        get_data() doit ignorer les commentaires postés par l'auteur de la vidéo.
+        
+        Cas réel : le créateur répond dans ses propres commentaires.
+        Le channel_id de la vidéo = l'authorChannelId → on ignore.
+        """
+
+        self.collector.channel_id = "UC_channel_123"
+        self.collector.language = "fr"
+        self.collector.nb_comments = 500
+        self.collector.video_title = "Ma vidéo"
+
+        # commentaire posté par l'auteur lui-même
+        commentaire_auteur = {
+            "items": [{
+                "id": "comment_auteur",
+                "snippet": {
+                    "topLevelComment": {
+                        "snippet": {
+                            "channelId": "UC_channel_123",
+                            "authorChannelId": "UC_channel_123",  # ← même ID = auteur
+                            "videoId": "68QYq9jcEIQ",
+                            "publishedAt": "2024-01-01T00:00:00Z",
+                            "textOriginal": "Merci pour vos commentaires !",
+                            "likeCount": 100
+                        }
+                    }
+                }
+            }]
+            # pas de nextPageToken
+        }
+
+        mock_youtube = MagicMock()
+        mock_youtube.commentThreads().list().execute.return_value = commentaire_auteur
+        mock_build.return_value = mock_youtube
+
+        with patch.dict(os.environ, {"DEVELOPER_KEY": "fake_key"}):
+            result = self.collector.get_data()
+
+        # le commentaire de l'auteur doit être filtré → liste vide
+        assert result == []
+
+    @patch("src.extraction.build")
+    def test_get_data_video_non_conforme_leve_erreur(self, mock_build):
+        """
+        get_data() doit lever ValueError si la vidéo n'est pas conforme.
+        On ne fait aucun appel à commentThreads dans ce cas.
+        """
+
+        # Arrange — vidéo en anglais → non conforme
+        self.collector.channel_id = "UC_channel_123"
+        self.collector.language = "en"   # ← non conforme
+        self.collector.nb_comments = 500
+
+        # Act + Assert
+        with patch.dict(os.environ, {"DEVELOPER_KEY": "fake_key"}):
+            with pytest.raises(ValueError, match="conformité"):
+                self.collector.get_data()
+    
+    def test_to_data_table_retourne_dataframe(self):
+        """
+        to_data_table() doit retourner un DataFrame pandas.
+        
+        Pourquoi on mock get_data() ici et pas build() ?
+            → to_data_table() appelle get_data()
+            → get_data() est déjà testé séparément
+            → ici on teste UNIQUEMENT que to_data_table() construit
+            bien un DataFrame à partir de ce que get_data() retourne
+            → on évite de re-tester toute la logique de get_data()
+        
+        C'est le principe d'isolation : chaque test teste une seule chose.
+        """
+        import pandas as pd
+
+        # Arrange — on remplace get_data() par une version qui retourne
+        # directement une liste, sans aucun appel API
+        fausses_donnees = [
+            {
+                "url": "https://youtu.be/68QYq9jcEIQ",
+                "id": "comment_001",
+                "titre": "Ma vidéo",
+                "channelId": "UC_channel_123",
+                "videoId": "68QYq9jcEIQ",
+                "publishedAt": "2024-01-01T00:00:00Z",
+                "comment": "Super vidéo !",
+                "likeCount": 5,
+                "extractedAt": "2024-01-01 12:00:00"
+            }
+        ]
+
+        # patch.object cible UNE méthode d'UNE instance spécifique
+        # ici self.collector.get_data → retourne fausses_donnees
+        with patch.object(self.collector, "get_data", return_value=fausses_donnees):
+            result = self.collector.to_data_table()
+
+        # Assert
+        assert isinstance(result, pd.DataFrame)
+        assert result.shape[0] == 1      # 1 ligne
+        assert result.shape[1] == 9      # 9 colonnes
+        assert "comment" in result.columns
+
+
