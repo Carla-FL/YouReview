@@ -1,6 +1,7 @@
+import os
 import pytest
 from src.utils import url2id
-# from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock
 from streamlit.testing.v1 import AppTest
 
 # ========================================
@@ -235,3 +236,97 @@ class TestAuthenticateUser:
 
 # ======================================== GET DATA COLLECTOR ================================================================================
 
+class TestAPIInteraction :
+    """
+        Tests unitaires pour APIInteraction.
+        
+        On teste UNIQUEMENT la logique de la classe :
+        - est-ce que __enter__ crée bien self.api_client ?
+        - est-ce que __exit__ ferme bien la connexion ?
+        - est-ce que les erreurs sont bien propagées ?
+        
+        On ne teste PAS YouTube — on mock build().
+        """
+    
+    @patch("src.extraction.build")
+    def test_enter_cree_api_client(self, mock_build):
+        """
+        __enter__ doit créer self.api_client en appelant build().
+        
+        Pourquoi @patch("src.extraction.build") ?
+            → build() est importé DANS extraction.py
+            → il faut patcher là où il est utilisé, pas là où il est défini
+            → "src.extraction.build" = le build() tel qu'il existe dans ce module
+        
+        Pourquoi mock_build en paramètre ?
+            → @patch injecte automatiquement le mock comme dernier argument
+            → le nom du paramètre n'a pas d'importance, par convention "mock_build"
+        """
+
+        # Arrange — on configure ce que build() doit retourner
+        mock_youtube_client = MagicMock() # MagicMock() simule un client YouTube qui accepte n'importe quel appel
+        mock_build.return_value = mock_youtube_client
+
+        # Act — on utilise APIInteraction comme dans le vrai code
+        # patch.dict remplace os.environ pendant le test, restauré après
+        with patch.dict(os.environ, {"DEVELOPER_KEY": "fake_key"}):
+            from src.extraction import APIInteraction
+            with APIInteraction() as api:
+
+                # Assert — à l'intérieur du "with", api_client doit exister
+                assert api.api_client is not None
+
+                # build() a bien été appelé avec les bons arguments
+                mock_build.assert_called_once_with(
+                    "youtube", "v3", developerKey="fake_key"
+                )
+
+
+    @patch("src.extraction.build")
+    def test_exit_ferme_connexion(self, mock_build):
+        """
+        __exit__ doit appeler .close() sur api_client.
+        
+        Pourquoi tester ça ?
+            → Si close() n'est pas appelé, la connexion reste ouverte
+            → Avec des centaines d'appels, ça peut épuiser les ressources
+        """
+
+        # Arrange
+        mock_youtube_client = MagicMock()
+        mock_build.return_value = mock_youtube_client
+
+        # Act — on entre ET on sort du bloc with
+        with patch.dict(os.environ, {"DEVELOPER_KEY": "fake_key"}):
+            from src.extraction import APIInteraction
+            with APIInteraction():
+                pass  # on ne fait rien, on veut juste tester __exit__
+
+        # Assert — après le "with", close() doit avoir été appelé
+        # assert_called_once() vérifie que close() a été appelé exactement 1 fois
+        # (pas 0 fois = oubli, pas 2 fois = bug)
+        mock_youtube_client.close.assert_called_once()
+
+
+    @patch("src.extraction.build")
+    def test_build_echoue_propage_exception(self, mock_build):
+        """
+        Si build() lève une exception, APIInteraction doit la propager.
+        
+        Pourquoi ?
+            → On veut que les erreurs soient visibles, pas silencieuses
+            → Si build() plante et qu'on l'ignore, le code continue
+            avec un api_client None → crash obscur plus loin
+        """
+
+        # Arrange — on configure build() pour qu'il plante
+        mock_build.side_effect = Exception("Clé API invalide")
+        #          ↑ side_effect = au lieu de retourner une valeur,
+        #            build() va lever cette exception
+
+        # Act + Assert — on vérifie que l'exception remonte bien
+        with patch.dict(os.environ, {"DEVELOPER_KEY": "fake_key"}):
+            from src.extraction import APIInteraction
+            with pytest.raises(Exception, match="Clé API invalide"):
+                with APIInteraction():
+                    pass
