@@ -442,19 +442,19 @@ class TestDataCollector:
         result = self.collector.control_conformity()
 
         # Assert
-        assert result == True
+        assert result
 
     def test_conformite_langue_non_fr(self):
         """Vidéo en anglais → non conforme même avec assez de commentaires."""
         self.collector.language = "en"
         self.collector.nb_comments = 500
-        assert self.collector.control_conformity() == False
+        assert not self.collector.control_conformity() 
 
     def test_conformite_pas_assez_commentaires(self):
         """Vidéo française avec moins de 200 commentaires → non conforme."""
         self.collector.language = "fr"
         self.collector.nb_comments = 50
-        assert self.collector.control_conformity() == False
+        assert not self.collector.control_conformity()
 
     def test_conformite_exactement_200_commentaires(self):
         """
@@ -467,7 +467,7 @@ class TestDataCollector:
         """
         self.collector.language = "fr"
         self.collector.nb_comments = 200
-        assert self.collector.control_conformity() == True
+        assert self.collector.control_conformity()
 
     @patch("src.extraction.build")
     def test_get_data_retourne_liste_de_dicts(self, mock_build):
