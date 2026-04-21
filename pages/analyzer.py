@@ -1,6 +1,6 @@
 import streamlit as st
 from src.utils import initialize_session_state, authenticate_user, get_url, DataCollector, DataMedaillonStorage
-import time
+# import time
 # from src.extraction import DatabaseInteraction
 
 # Initialize session state for authentication
