@@ -1,5 +1,6 @@
 import streamlit as st
-from src.utils import initialize_session_state, authenticate_user, get_url
+from src.utils import initialize_session_state, authenticate_user, get_url, DataCollector, DataMedaillonStorage
+import time
 # from src.extraction import DatabaseInteraction
 
 # Initialize session state for authentication
@@ -23,11 +24,31 @@ if st.session_state.authenticated:
     if url and video_id:
         st.session_state.videoid = video_id
         st.session_state.url_inputed = url
-        st.success(f"URL validée ! ID de la vidéo : {video_id, url}")
+        # st.success(f"URL validée ! ID de la vidéo : {video_id, url}")
 
-        st.write("Test de la connexion à la base de données ")
-        # with st.spinner("Wait for it...", show_time=True):
-        #     with DatabaseInteraction() as db:
-        #         st.success("Connexion à la base de données réussie !")
-        #         pass
+        st.write("La vidéo")
+        with st.spinner("Chargement de la vidéo...", show_time=True):
+            # Afficher la vidéo
+            st.video(url)
+        with st.spinner("Chargement des données....", show_time=True):
+            
+            # on regarde si les données sont déjà dans la base de données
+            dc_ = DataCollector(url, video_id)
+            dc_.get_info_video()
+            channel_id = dc_.channel_id
+            with DataMedaillonStorage(channel_id=channel_id, video_id=video_id) as data_storage:
+                
+                # si oui on affiche les insights
+                if data_storage.check_existing_video("bronze"):
+                    st.info("Données déjà présentes dans la base de données. Affichage des insights...")
+                    # Affichage des insights
+
+                # sinon on les extrait et on les stocke
+                else:
+                    st.info("Données non présentes dans la base de données. Extraction en cours...")
+                    # Extraction des données
+                    data = dc_.get_data()
+                    data_storage.db_insert(data, "bronze")
+
+                    # ETL
 
