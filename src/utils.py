@@ -4,7 +4,7 @@ import time
 import pandas as pd
 import streamlit as st
 
-from src.extraction import APIInteraction
+from src.extraction import APIInteraction,DatabaseInteraction
 
 def initialize_session_state():
     """Initialise les variables de session si elles n'existent pas"""
@@ -211,22 +211,122 @@ class DataCollector :
         df = self.to_data_table()
         return df, self.video_id, self.channel_id
     
-class DataStorage :
+class DataMedaillonStorage :
     """
     Classe de stockage des données collectées dans une base de données MongoDB Atlas.
     Cette classe utilise un gestionnaire de contexte pour garantir que la connexion à la base de données est correctement fermée après utilisation, même en cas d'erreur.
+
+    exemple d'utilisation :
+    with DataMedaillonStorage(data, video_id, channel_id) as storage:
+        storage.save_bronze(data)
+        
 
     Args:
         data (pd.DataFrame): Le DataFrame contenant les données à stocker
         video_id (str): L'ID de la vidéo YouTube associée aux données
         channel_id (str): L'ID de la chaîne YouTube associée aux données
     """
-    def __init__(self, data:pd.DataFrame, video_id:str, channel_id:str):
-        self.data = data
-        self.video_id = video_id
+    def __init__(self, channel_id:str, video_id:str):
         self.channel_id = channel_id
+        self.video_id = video_id
+        self.db_interaction = None # instance de la classe DatabaseInteraction pour gérer les interactions avec la base de données MongoDB Atlas. # Cette variable sera initialisée dans la méthode __enter__ du gestionnaire de contexte, où la connexion à la base de données sera établie. En utilisant un gestionnaire de contexte, on s'assure que la connexion à la base de données est correctement fermée après utilisation, même en cas d'erreur.
 
-    def store_data(self):
-        # with DatabaseInteraction() as db_interaction:
-            # Code pour stocker les données dans la base de données MongoDB Atlas
-            pass
+
+    def __enter__(self):
+        try :
+            """Ouvre la connexion MongoDB et sélectionne la base de la chaîne."""
+            self.db_interaction = DatabaseInteraction()
+            self.db_interaction.__enter__() # ouvrir la connexion à la base de données
+            # sélectionne (ou crée) la base de données de cette chaîne
+            # MongoDB crée la DB automatiquement au premier insert
+            self.db = self._db_interaction.client[self.channel_id]
+            print(f"Connecté à la base : {self.channel_id}")
+            return self
+        
+        except Exception as e:
+            print(f"Erreur lors de l'établissement de la connexion à MongoDB Atlas : {e}")
+            raise
+    
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Ferme la connexion MongoDB proprement."""
+        if self.db_interaction:
+            self.db_interaction.__exit__(exc_type, exc_val, exc_tb)
+        return False
+    
+
+    def _get_collection(self, layer: str ):
+        """
+        Retourne la collection MongoDB pour une couche donnée.
+
+        Args:
+            layer: "bronze", "silver" ou "gold"
+        Returns:
+            collection MongoDB
+        """
+        if layer not in ("bronze", "silver", "gold"):
+            raise ValueError(f"Couche invalide : {layer}. Choisir bronze, silver ou gold.")
+        return self.db[layer]
+    
+    
+    def check_existing_video(self, layer: str = "bronze") -> bool:
+        """
+        Vérifie si les données d'une vidéo existent déjà dans une couche.
+        Évite les doublons lors des extractions répétées.
+
+        Args:
+            video_id: ID de la vidéo YouTube
+            layer: couche à vérifier (défaut: bronze)
+        Returns:
+            True si des données existent déjà, False sinon
+        """
+        collection = self._get_collection(layer)
+        count = collection.count_documents({"videoId": self.video_id})
+        return True if count > 0 else False
+    
+
+    def add_metadata(self, data: list, layer: str) -> list:
+        """
+        Ajoute des métadonnées à chaque document avant l'insertion.
+
+        Args:
+            data: liste de documents à insérer
+            layer: couche dans laquelle les données seront insérées (bronze, silver ou gold)
+        Returns:
+            liste de documents enrichis avec les métadonnées
+        """
+        for doc in data:
+            doc["metadata"]["layer"]= layer
+        return data
+    
+
+    def db_insert(self, data: list, layer: str ):
+
+        if self.check_existing_video(video_id=self.video_id, layer=layer):
+            print(f"Les données de la vidéo {self.video_id} existent déjà dans la couche {layer}. Insertion ignorée.")
+            return
+        
+        collection = self._get_collection(layer)
+        documents = self.add_metadata(data,layer)
+        collection.insert_many(documents)
+
+
+    def load_data(self, layer: str, video_id: str) -> list:
+        """
+        Charge les données d'une vidéo depuis une couche.
+
+        Args:
+            layer: couche à partir de laquelle charger les données (bronze, silver ou gold)
+            video_id: ID de la vidéo YouTube
+        Returns:
+            liste de documents correspondant à la vidéo dans la couche spécifiée
+        """
+        if not self.check_existing_video(video_id=video_id, layer=layer) :
+            print(f"Aucune donnée trouvée pour la vidéo {video_id} dans la couche {layer}.")
+            return []
+        collection = self._get_collection(layer)
+        documents = list(collection.find({"videoId": video_id}))
+        return documents
+
+    def maj():
+        pass

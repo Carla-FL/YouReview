@@ -638,3 +638,5 @@ class TestDataCollector:
         assert "comment" in result.columns
 
 
+class TetsDataStorage:
+    pass
