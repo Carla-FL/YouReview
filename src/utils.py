@@ -100,9 +100,10 @@ class DataCollector :
         video_url (str): L'URL de la vidéo YouTube à analyser
 
     """
-    def __init__(self, video_url:str="", video_id:str=""):
+    def __init__(self, video_url:str="", video_id:str="", maxresults:int=100):
         
         self.api_key = os.getenv('DEVELOPER_KEY')
+        self.maxresults = maxresults
         self.video_url = video_url
         self.video_id = video_id
         self.channel_id = None
@@ -163,7 +164,7 @@ class DataCollector :
                     response = api_interaction.api_client.commentThreads().list(
                     part="snippet",
                     videoId=self.video_id,
-                    maxResults=100,
+                    maxResults=self.maxresults,
                     order="time",
                     textFormat="plainText",
                     pageToken=next_page_token
@@ -173,7 +174,8 @@ class DataCollector :
                     for item in response.get("items", []):
                         comment_info = item["snippet"]["topLevelComment"]["snippet"]
                         # Vérifier si le commentaire est celui de l'auteur de la vidéo :
-                        if self.channel_id == comment_info.get("authorChannelId"): # si c'est le cas
+                        if self.channel_id == comment_info.get("authorChannelId")["value"]: 
+                            # si le commentaire est celui de l'auteur de la vidéo, on ne le prend pas en compte pour l'analyse
                             continue # on passe au suivant 
                         
                         comments_data.append({
@@ -209,7 +211,7 @@ class DataCollector :
 
     def main_extraction(self):
         df = self.to_data_table()
-        return df, self.video_id, self.channel_id
+        return df, self.channel_id
     
 class DataMedaillonStorage :
     """
@@ -239,7 +241,7 @@ class DataMedaillonStorage :
             self.db_interaction.__enter__() # ouvrir la connexion à la base de données
             # sélectionne (ou crée) la base de données de cette chaîne
             # MongoDB crée la DB automatiquement au premier insert
-            self.db = self._db_interaction.client[self.channel_id]
+            self.db = self.db_interaction.client[self.channel_id]
             print(f"Connecté à la base : {self.channel_id}")
             return self
         
@@ -296,13 +298,15 @@ class DataMedaillonStorage :
             liste de documents enrichis avec les métadonnées
         """
         for doc in data:
+            if "metadata" not in doc:
+                doc["metadata"] = {}
             doc["metadata"]["layer"]= layer
         return data
     
 
     def db_insert(self, data: list, layer: str ):
 
-        if self.check_existing_video(video_id=self.video_id, layer=layer):
+        if self.check_existing_video(layer=layer):
             print(f"Les données de la vidéo {self.video_id} existent déjà dans la couche {layer}. Insertion ignorée.")
             return
         
@@ -330,3 +334,6 @@ class DataMedaillonStorage :
 
     def maj():
         pass
+
+def etl():
+    pass
