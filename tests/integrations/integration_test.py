@@ -64,7 +64,7 @@ class TestIntegrationExtractionPipeline:
         Test du flux complet :
         __init__ → get_info_video() → control_conformity() → get_data() → to_data_table()
         
-        C'est le chemin heureux : vidéo française, assez de commentaires.
+        Le chemin : vidéo française, assez de commentaires.
         On vérifie que toutes les méthodes s'enchaînent sans erreur
         et produisent un DataFrame valide.
         """
@@ -163,9 +163,8 @@ class TestIntegrationExtractionPipeline:
                 video_id="68QYq9jcEIQ"
             )
             collector.get_info_video()
-            df, video_id, channel_id = collector.main_extraction()
+            df, channel_id = collector.main_extraction()
 
         # le tuple est complet
         assert isinstance(df, pd.DataFrame)
-        assert video_id == "68QYq9jcEIQ"
         assert channel_id == "UC_channel_123"
