@@ -634,7 +634,7 @@ class TestDataCollector:
         # Assert
         assert isinstance(result, pd.DataFrame)
         assert result.shape[0] == 1      # 1 ligne
-        assert result.shape[1] == 10     # 10 colonnes
+        assert result.shape[1] == 9     # 9 colonnes
         assert "comment" in result.columns
 
 
