@@ -175,7 +175,8 @@ class DataCollector :
                     for item in response.get("items", []):
                         comment_info = item["snippet"]["topLevelComment"]["snippet"]
                         # Vérifier si le commentaire est celui de l'auteur de la vidéo :
-                        if self.channel_id == comment_info.get("authorChannelId")["value"]: 
+                        # if self.channel_id == comment_info.get("authorChannelId")["value"]: 
+                        if self.channel_id == comment_info["authorChannelId"]["value"]: 
                             # si le commentaire est celui de l'auteur de la vidéo, on ne le prend pas en compte pour l'analyse
                             continue # on passe au suivant 
                         
