@@ -39,16 +39,14 @@ if st.session_state.authenticated:
             with DataMedaillonStorage(channel_id=channel_id, video_id=video_id) as data_storage:
                 
                 # si oui on affiche les insights
-                if data_storage.check_existing_video("bronze"):
-                    st.info("Données déjà présentes dans la base de données. Affichage des insights...")
-                    # Affichage des insights
-
-                # sinon on les extrait et on les stocke
-                else:
+                if not data_storage.check_existing_video("bronze"):
+                    
                     st.info("Données non présentes dans la base de données. Extraction en cours...")
                     # Extraction des données
                     data = dc_.get_data()
                     data_storage.db_insert(data, "bronze")
-
-                    # ETL
+                else :
+                    pass
+            
+        
 
