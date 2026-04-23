@@ -380,7 +380,7 @@ class TestDataCollector:
         fausse_reponse_api = {
             "items": [{
                 "snippet": {
-                    "channelId": "UC_channel_123",
+                    "channelId": {"value":"UC_channel_123"},
                     "defaultLanguage": "fr",
                     "title": "Ma super vidéo"
                 },
@@ -495,7 +495,7 @@ class TestDataCollector:
                     "topLevelComment": {
                         "snippet": {
                             "channelId": "UC_channel_123",
-                            "authorChannelId": author_id,
+                            "authorChannelId": {"value":author_id},
                             "videoId": "68QYq9jcEIQ",
                             "publishedAt": "2024-01-01T00:00:00Z",
                             "textOriginal": "Super vidéo !",
@@ -539,7 +539,7 @@ class TestDataCollector:
         """
         get_data() doit ignorer les commentaires postés par l'auteur de la vidéo.
         
-        Cas réel : le créateur répond dans ses propres commentaires.
+        Cas réel : le créateur commente sa propre vidéo, répond aux commentaires...
         Le channel_id de la vidéo = l'authorChannelId → on ignore.
         """
 
@@ -556,7 +556,7 @@ class TestDataCollector:
                     "topLevelComment": {
                         "snippet": {
                             "channelId": "UC_channel_123",
-                            "authorChannelId": "UC_channel_123",  # ← même ID = auteur
+                            "authorChannelId": {'value':"UC_channel_123"},  # ← même ID = auteur
                             "videoId": "68QYq9jcEIQ",
                             "publishedAt": "2024-01-01T00:00:00Z",
                             "textOriginal": "Merci pour vos commentaires !",
@@ -619,6 +619,7 @@ class TestDataCollector:
                 "titre": "Ma vidéo",
                 "channelId": "UC_channel_123",
                 "videoId": "68QYq9jcEIQ",
+                "authorChannelId": {'value':"UC_channel_124"},
                 "publishedAt": "2024-01-01T00:00:00Z",
                 "comment": "Super vidéo !",
                 "likeCount": 5,
