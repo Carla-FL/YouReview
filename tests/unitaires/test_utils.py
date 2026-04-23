@@ -619,7 +619,6 @@ class TestDataCollector:
                 "titre": "Ma vidéo",
                 "channelId": "UC_channel_123",
                 "videoId": "68QYq9jcEIQ",
-                "authorChannelId":"UC_channel_124",
                 "publishedAt": "2024-01-01T00:00:00Z",
                 "comment": "Super vidéo !",
                 "likeCount": 5,
@@ -635,7 +634,7 @@ class TestDataCollector:
         # Assert
         assert isinstance(result, pd.DataFrame)
         assert result.shape[0] == 1      # 1 ligne
-        assert result.shape[1] == 9      # 9 colonnes
+        assert result.shape[1] == 10     # 10 colonnes
         assert "comment" in result.columns
 
 
