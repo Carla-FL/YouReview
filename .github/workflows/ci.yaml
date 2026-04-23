@@ -144,7 +144,7 @@ jobs:
     - name : Tests unitaires (pytest)
       run : |
         pip install pytest pytest-cov
-        pytest tests/ -v --cov=src --cov-report=xml
+        pytest tests/unitaires -v --cov=src --cov-report=xml
     
     # Upload du rapport de couverture
     # consultable dans l'onglet Actions sur gituhb
@@ -189,10 +189,16 @@ jobs:
     - name : installation des dépendances
       run : pip install -r requirements.txt
 
+    # Tests d'intégration 
+    - name: Tests d'intégration
+      run: |
+        pip install pytest
+        pytest tests/integrations/ -v
+    # Tests fonctionnels
+
     # vérification que l'app Streamlit démarre sans erreur (smoke test)
     - name : Smoke test - vérification du démarrage
       run : |
-        pip install streamlit
         timeout 15 streamlit run accueil.py \
           --server.headless true \
           --server.port 8501 &
