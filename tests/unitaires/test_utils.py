@@ -380,7 +380,7 @@ class TestDataCollector:
         fausse_reponse_api = {
             "items": [{
                 "snippet": {
-                    "channelId": {"value":"UC_channel_123"},
+                    "channelId": "UC_channel_123",
                     "defaultLanguage": "fr",
                     "title": "Ma super vidéo"
                 },
@@ -619,7 +619,7 @@ class TestDataCollector:
                 "titre": "Ma vidéo",
                 "channelId": "UC_channel_123",
                 "videoId": "68QYq9jcEIQ",
-                "authorChannelId": {'value':"UC_channel_124"},
+                "authorChannelId":"UC_channel_124",
                 "publishedAt": "2024-01-01T00:00:00Z",
                 "comment": "Super vidéo !",
                 "likeCount": 5,
