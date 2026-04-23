@@ -110,6 +110,7 @@ class DataCollector :
         self.language = None
         self.nb_comments = None
         self.video_title = None
+        self.maxresults = maxresults
 
 
 
