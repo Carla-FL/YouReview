@@ -174,8 +174,9 @@ class DataCollector :
                     extraction_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
                     for item in response.get("items", []):
                         comment_info = item["snippet"]["topLevelComment"]["snippet"]
+                        author_channel_id = comment_info.get("authorChannelId", {}).get("value")
                         # Vérifier si le commentaire est celui de l'auteur de la vidéo :
-                        if self.channel_id == comment_info.get("authorChannelId").get("value"): 
+                        if self.channel_id == author_channel_id: 
                             # si le commentaire est celui de l'auteur de la vidéo, on ne le prend pas en compte pour l'analyse
                             continue # on passe au suivant 
                         
